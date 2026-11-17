@@ -1,11 +1,37 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useState, useEffect } from "react";
+import * as Notifications from "expo-notifications";
+import MainScreen from "../Screen/MainScreen";
 
-export function useIdleGame() {
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: false,
+    shouldSetBadge: false,
+  }),
+});
+
+export function UseIdleGame() {
   const [point, setPoint] = useState(0);
   const [prix, setPrix] = useState(100);
   const [pps, setPps] = useState(1);
   const [etat, setEtat] = useState("");
+  const [flag, setFlag] = useState(false);
+  useEffect(() => {
+    async function autorisation() {
+      const { status: existingStatus } =
+        await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+
+      if (existingStatus !== "granted") {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+    }
+    autorisation();
+  }, []);
 
   useEffect(() => {
     async function load() {
@@ -14,7 +40,7 @@ export function useIdleGame() {
         const data = JSON.parse(save);
         setPoint(data.point);
         setPrix(data.prix);
-        setPps(data.pps);
+        setPps(30);
       }
     }
     load();
@@ -28,6 +54,24 @@ export function useIdleGame() {
     return () => clearInterval(timer);
   }, [pps]);
 
+  useEffect(() => {
+    if (point > prix && !flag) {
+      console.log("OK");
+      Notifications.scheduleNotificationAsync({
+        content: {
+          title: "niveau suivant !",
+          body: "tu peux upgrade",
+          data: { screen: MainScreen },
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+          seconds: 1,
+        },
+      });
+      setFlag(true);
+    }
+  }, [point]);
+
   function click() {
     if (point >= prix) {
       const newPoint = point - prix;
@@ -37,7 +81,7 @@ export function useIdleGame() {
       setPoint(newPoint);
       setPrix(newPrix);
       setPps(newPps);
-
+      setFlag(false);
       // Sauvegarde des nouvelles valeurs
       AsyncStorage.setItem(
         "save",
@@ -49,5 +93,5 @@ export function useIdleGame() {
     }
   }
 
-  return { point, prix, pps, etat, click };
+  return { point, prix, pps, etat, click, setPrix };
 }
